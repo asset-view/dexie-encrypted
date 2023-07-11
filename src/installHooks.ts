@@ -22,7 +22,7 @@ export function encryptEntity<T extends Dexie.Table>(
     }
 
     const indexObjects = table.schema.indexes as (IndexSpec | DBCoreIndex)[];
-    const indices = indexObjects.map(index => index.keyPath);
+    const indices = indexObjects.map((index) => index.keyPath);
     const toEncrypt: Partial<TableType<T>> = {};
     const dataToStore: Partial<TableType<T>> = {};
 
@@ -72,10 +72,9 @@ export function decryptEntity<T extends Dexie.Table>(
     rule: EncryptionOption<T> | undefined,
     encryptionKey: Uint8Array,
     performDecryption: DecryptionMethod
-) {
-    if (rule === undefined || entity === undefined || !entity.__encryptedData) {
-        return entity;
-    }
+): TableType<T> | undefined {
+    if (!entity) return;
+    if (rule === undefined || !entity.__encryptedData) return entity;
 
     const { __encryptedData, ...unencryptedFields } = entity;
 
@@ -97,7 +96,7 @@ export function decryptEntity<T extends Dexie.Table>(
     return {
         ...unencryptedFields,
         ...decrypted,
-    } as TableType<T>;
+    };
 }
 
 export function installHooks<T extends Dexie>(
@@ -112,7 +111,7 @@ export function installHooks<T extends Dexie>(
     // but we also need to add the hooks before the db is open, so it's
     // guaranteed to happen before the key is actually needed.
     let encryptionKey = new Uint8Array(32);
-    keyPromise.then(realKey => {
+    keyPromise.then((realKey) => {
         encryptionKey = realKey;
     });
 
@@ -155,7 +154,7 @@ export function installHooks<T extends Dexie>(
                     return {
                         ...table,
                         openCursor(req) {
-                            return table.openCursor(req).then(cursor => {
+                            return table.openCursor(req).then((cursor) => {
                                 if (!cursor) {
                                     return cursor;
                                 }
@@ -187,21 +186,23 @@ export function installHooks<T extends Dexie>(
                             return table.get(req).then(decrypt);
                         },
                         getMany(req) {
-                            return table.getMany(req).then(items => {
+                            return table.getMany(req).then((items) => {
                                 return items.map(decrypt);
                             });
                         },
                         query(req) {
-                            return table.query(req).then(res => {
-                                return Dexie.Promise.all(res.result.map(decrypt)).then(result => ({
-                                    ...res,
-                                    result,
-                                }));
+                            return table.query(req).then((res) => {
+                                return Dexie.Promise.all(res.result.map(decrypt)).then(
+                                    (result) => ({
+                                        ...res,
+                                        result,
+                                    })
+                                );
                             });
                         },
                         mutate(req) {
                             if (req.type === 'add' || req.type === 'put') {
-                                return Dexie.Promise.all(req.values.map(encrypt)).then(values =>
+                                return Dexie.Promise.all(req.values.map(encrypt)).then((values) =>
                                     table.mutate({
                                         ...req,
                                         values,

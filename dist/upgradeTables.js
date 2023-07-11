@@ -20,7 +20,7 @@ function upgradeTables(db, tableSettings, encryptionKey, oldSettings, encrypt, d
     return tslib_1.__awaiter(this, void 0, void 0, function* () {
         const unencryptedDb = new dexie_1.default(db.name);
         // @ts-ignore
-        const version = db._versions.find(v => v._cfg.version === db.verno);
+        const version = db._versions.find((v) => v._cfg.version === db.verno);
         unencryptedDb.version(db.verno).stores(version._cfg.storesSource);
         yield unencryptedDb.open();
         return dexie_1.default.Promise.all(unencryptedDb.tables.map(function (tbl) {
@@ -52,9 +52,11 @@ function upgradeTables(db, tableSettings, encryptionKey, oldSettings, encrypt, d
                         }
                     }
                 }
-                yield table.toCollection().modify(function (entity, ref) {
-                    const decrypted = installHooks_1.decryptEntity(entity, oldSetting, encryptionKey, decrypt);
-                    ref.value = installHooks_1.encryptEntity(table, decrypted, newSetting, encryptionKey, encrypt, nonceOverride);
+                yield table
+                    .toCollection()
+                    .modify((entity, ctx) => {
+                    const decrypted = (0, installHooks_1.decryptEntity)(entity, oldSetting, encryptionKey, decrypt);
+                    ctx.value = (0, installHooks_1.encryptEntity)(table, decrypted, newSetting, encryptionKey, encrypt, nonceOverride);
                 });
                 return;
             });

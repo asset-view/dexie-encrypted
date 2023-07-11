@@ -14,7 +14,7 @@ function encryptWithNacl(key, object, nonce) {
         nonce = tweetnacl_1.default.randomBytes(tweetnacl_1.default.secretbox.nonceLength);
     }
     const stringified = tson.stringify(object);
-    const encrypted = tweetnacl_1.default.secretbox(utf8_1.encode(stringified), nonce, key);
+    const encrypted = tweetnacl_1.default.secretbox((0, utf8_1.encode)(stringified), nonce, key);
     const data = new Uint8Array(nonce.length + encrypted.length);
     data.set(nonce);
     data.set(encrypted, nonce.length);
@@ -28,7 +28,7 @@ function decryptWithNacl(encryptionKey, encryptedArray) {
     if (rawDecrypted === null) {
         throw new Error('Dexie-encrypted was unable to decrypt an entity.');
     }
-    return tson.parse(utf8_1.decode(rawDecrypted));
+    return tson.parse((0, utf8_1.decode)(rawDecrypted));
 }
 exports.decryptWithNacl = decryptWithNacl;
 //# sourceMappingURL=encryptionMethods.js.map

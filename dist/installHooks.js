@@ -9,7 +9,7 @@ function encryptEntity(table, entity, rule, encryptionKey, performEncryption, no
         return entity;
     }
     const indexObjects = table.schema.indexes;
-    const indices = indexObjects.map(index => index.keyPath);
+    const indices = indexObjects.map((index) => index.keyPath);
     const toEncrypt = {};
     const dataToStore = {};
     const primaryKey = 'primKey' in table.schema ? table.schema.primKey.keyPath : table.schema.primaryKey.keyPath;
@@ -54,9 +54,10 @@ function encryptEntity(table, entity, rule, encryptionKey, performEncryption, no
 }
 exports.encryptEntity = encryptEntity;
 function decryptEntity(entity, rule, encryptionKey, performDecryption) {
-    if (rule === undefined || entity === undefined || !entity.__encryptedData) {
+    if (!entity)
+        return;
+    if (rule === undefined || !entity.__encryptedData)
         return entity;
-    }
     const { __encryptedData } = entity, unencryptedFields = tslib_1.__rest(entity, ["__encryptedData"]);
     let decrypted = performDecryption(encryptionKey, __encryptedData);
     // There is a bug that causes double encryption. I am not sure what causes it,
@@ -79,7 +80,7 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
     // but we also need to add the hooks before the db is open, so it's
     // guaranteed to happen before the key is actually needed.
     let encryptionKey = new Uint8Array(32);
-    keyPromise.then(realKey => {
+    keyPromise.then((realKey) => {
         encryptionKey = realKey;
     });
     return db.use({
@@ -101,7 +102,7 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
                         return decryptEntity(data, encryptionSetting, encryptionKey, performDecryption);
                     }
                     return Object.assign(Object.assign({}, table), { openCursor(req) {
-                            return table.openCursor(req).then(cursor => {
+                            return table.openCursor(req).then((cursor) => {
                                 if (!cursor) {
                                     return cursor;
                                 }
@@ -133,17 +134,18 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
                             return table.get(req).then(decrypt);
                         },
                         getMany(req) {
-                            return table.getMany(req).then(items => {
+                            return table.getMany(req).then((items) => {
                                 return items.map(decrypt);
                             });
-                        }, query(req) {
-                            return table.query(req).then(res => {
-                                return dexie_1.default.Promise.all(res.result.map(decrypt)).then(result => (Object.assign(Object.assign({}, res), { result })));
+                        },
+                        query(req) {
+                            return table.query(req).then((res) => {
+                                return dexie_1.default.Promise.all(res.result.map(decrypt)).then((result) => (Object.assign(Object.assign({}, res), { result })));
                             });
                         },
                         mutate(req) {
                             if (req.type === 'add' || req.type === 'put') {
-                                return dexie_1.default.Promise.all(req.values.map(encrypt)).then(values => table.mutate(Object.assign(Object.assign({}, req), { values })));
+                                return dexie_1.default.Promise.all(req.values.map(encrypt)).then((values) => table.mutate(Object.assign(Object.assign({}, req), { values })));
                             }
                             return table.mutate(req);
                         } });

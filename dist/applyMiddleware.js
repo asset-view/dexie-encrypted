@@ -43,7 +43,7 @@ function applyMiddlewareWithCustomEncryption({ db, encryptionKey, tableSettings,
             throw new Error('Dexie-encrypt: The call to encrypt() cannot be done on an open database');
         }
     }
-    installHooks_1.installHooks(db, tableSettings, keyPromise, encrypt, decrypt, _nonceOverrideForTesting);
+    (0, installHooks_1.installHooks)(db, tableSettings, keyPromise, encrypt, decrypt, _nonceOverrideForTesting);
     db.on('ready', () => tslib_1.__awaiter(this, void 0, void 0, function* () {
         try {
             let encryptionSettings = db.table('_encryptionSettings');
@@ -58,8 +58,8 @@ function applyMiddlewareWithCustomEncryption({ db, encryptionKey, tableSettings,
             if (encryptionKey instanceof Uint8Array === false || encryptionKey.length !== 32) {
                 throw new Error('Dexie-encrypted requires a Uint8Array of length 32 for a encryption key.');
             }
-            yield checkForKeyChange_1.checkForKeyChange(db, oldSettings, encryptionKey, encrypt, decrypt, onKeyChange);
-            yield upgradeTables_1.upgradeTables(db, tableSettings, encryptionKey, oldSettings === null || oldSettings === void 0 ? void 0 : oldSettings.settings, encrypt, decrypt, _nonceOverrideForTesting);
+            yield (0, checkForKeyChange_1.checkForKeyChange)(db, oldSettings, encryptionKey, encrypt, decrypt, onKeyChange);
+            yield (0, upgradeTables_1.upgradeTables)(db, tableSettings, encryptionKey, oldSettings === null || oldSettings === void 0 ? void 0 : oldSettings.settings, encrypt, decrypt, _nonceOverrideForTesting);
             yield encryptionSettings.clear();
             yield encryptionSettings.put({
                 settings: tableSettings,

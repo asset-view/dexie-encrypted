@@ -1,5 +1,8 @@
-module.exports = {
-    preset: 'ts-jest',
-    testEnvironment: 'jsdom',
-    clearMocks: true,
+/** @type {import('jest').Config} */
+module.exports = async () => {
+    return {
+        preset: 'ts-jest',
+        testEnvironment: 'jsdom',
+        clearMocks: true,
+    };
 };

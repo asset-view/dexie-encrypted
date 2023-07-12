@@ -14,8 +14,8 @@ const {
 
 const keyPair = nacl.sign.keyPair.fromSeed(new Uint8Array(32));
 
-const dbToJson = db => {
-    return new Promise(async resolve => {
+const dbToJson = (db) => {
+    return new Promise(async (resolve) => {
         const blob = await db.export();
         const reader = new FileReader();
         reader.addEventListener('loadend', () => {
@@ -88,7 +88,7 @@ describe('Encrypting', () => {
         expect(out).toEqual({ ...original, id: 1 });
     });
 
-    it('should decrypt', async done => {
+    it('should decrypt', async () => {
         const db = new Dexie('decrypt-test');
         applyEncryptionMiddleware(
             db,
@@ -119,10 +119,9 @@ describe('Encrypting', () => {
         const out = await db.friends.get(1);
         delete out.id;
         expect(original).toEqual(out);
-        done();
     });
 
-    it('should decrypt when the database is closed and reopened', async done => {
+    it('should decrypt when the database is closed and reopened', async () => {
         const db = new Dexie('decrypt-test-2');
         applyEncryptionMiddleware(
             db,
@@ -170,10 +169,9 @@ describe('Encrypting', () => {
         const out = await db2.friends.get(1);
         delete out.id;
         expect(original).toEqual(out);
-        done();
     });
 
-    it('should not modify your object', async done => {
+    it('should not modify your object', async () => {
         const db = new Dexie('MyDatabase');
         applyEncryptionMiddleware(
             db,
@@ -204,10 +202,9 @@ describe('Encrypting', () => {
         await db.friends.add(original);
         delete original.id;
         expect(original).toEqual(earlyClone);
-        done();
     });
 
-    it('should not explode if you get something undefined', async done => {
+    it('should not explode if you get something undefined', async () => {
         const db = new Dexie('explode-undefined');
 
         applyEncryptionMiddleware(
@@ -226,7 +223,6 @@ describe('Encrypting', () => {
 
         const val = await db.friends.get(1);
         expect(val).toBe(undefined);
-        done();
     });
 
     it('should still work when you update an existing entity', async () => {
@@ -416,14 +412,11 @@ describe('Encrypting', () => {
 
         db.friends.bulkPut(data);
 
-        const friend = await db.friends
-            .where('age')
-            .above(40)
-            .toArray();
+        const friend = await db.friends.where('age').above(40).toArray();
 
         expect(friend).toMatchInlineSnapshot(`
-            Array [
-              Object {
+            [
+              {
                 "age": 52,
                 "id": 2,
                 "name": "Allimac",
@@ -470,21 +463,18 @@ describe('Encrypting', () => {
 
         db.friends.bulkPut(data);
 
-        const friend = await db.friends
-            .where('age')
-            .anyOf([25, 52])
-            .toArray();
+        const friend = await db.friends.where('age').anyOf([25, 52]).toArray();
 
         expect(friend).toMatchInlineSnapshot(`
-            Array [
-              Object {
+            [
+              {
                 "age": 25,
                 "id": 1,
                 "name": "Camilla",
                 "picture": "camilla.png",
                 "street": "East 13:th Street",
               },
-              Object {
+              {
                 "age": 52,
                 "id": 2,
                 "name": "Allimac",
@@ -534,15 +524,15 @@ describe('Encrypting', () => {
         const friend = await db.friends.bulkGet([1, 2]);
 
         expect(friend).toMatchInlineSnapshot(`
-            Array [
-              Object {
+            [
+              {
                 "age": 25,
                 "id": 1,
                 "name": "Camilla",
                 "picture": "camilla.png",
                 "street": "East 13:th Street",
               },
-              Object {
+              {
                 "age": 52,
                 "id": 2,
                 "name": "Allimac",

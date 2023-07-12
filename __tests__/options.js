@@ -67,7 +67,7 @@ describe('Options', () => {
         const decrypted = await decryptingDb.friends.get(1);
 
         expect(decrypted).toMatchInlineSnapshot(`
-            Object {
+            {
               "age": 25,
               "id": 1,
               "name": "Camilla",
@@ -84,7 +84,7 @@ describe('Options', () => {
         await readingDb.open();
         const out = await readingDb.friends.get(1);
         expect(out).toMatchInlineSnapshot(`
-            Object {
+            {
               "__encryptedData": Uint8Array [
                 0,
                 0,
@@ -265,7 +265,7 @@ describe('Options', () => {
         await decryptingDb.open();
         const decrypted = await decryptingDb.friends.get(1);
         expect(decrypted).toMatchInlineSnapshot(`
-            Object {
+            {
               "age": 25,
               "id": 1,
               "name": "Camilla",
@@ -282,7 +282,7 @@ describe('Options', () => {
         await readingDb.open();
         const out = await readingDb.friends.get(1);
         expect(out).toMatchInlineSnapshot(`
-            Object {
+            {
               "__encryptedData": Uint8Array [
                 0,
                 0,
@@ -413,7 +413,7 @@ describe('Options', () => {
         `);
     });
 
-    it('should encrypt non-indexed fields', async done => {
+    it('should encrypt non-indexed fields', async () => {
         const db = new Dexie('non-indexed-fields');
         applyEncryptionMiddleware(
             db,
@@ -461,7 +461,7 @@ describe('Options', () => {
         await decryptingDb.open();
         const decrypted = await decryptingDb.friends.get(1);
         expect(decrypted).toMatchInlineSnapshot(`
-            Object {
+            {
               "age": 25,
               "id": 1,
               "name": "Camilla",
@@ -478,7 +478,7 @@ describe('Options', () => {
         await readingDb.open();
         const out = await readingDb.friends.get(1);
         expect(out).toMatchInlineSnapshot(`
-            Object {
+            {
               "__encryptedData": Uint8Array [
                 0,
                 0,
@@ -613,8 +613,6 @@ describe('Options', () => {
               "name": "Camilla",
             }
         `);
-
-        done();
     });
 
     it('should wait for a promise to resolve with a key if given a promise', async () => {
@@ -667,7 +665,7 @@ describe('Options', () => {
         expect(out).toEqual({ ...original, id: 1 });
     });
 
-    it('should execute callback when key changes', async done => {
+    it('should execute callback when key changes', async () => {
         const db = new Dexie('key-change-test');
         const key = new Uint8Array(32);
         const key2 = new Uint8Array(32);
@@ -723,6 +721,5 @@ describe('Options', () => {
 
         const friends = await db2.friends.get(1);
         expect(friends).toEqual(undefined);
-        done();
     });
 });

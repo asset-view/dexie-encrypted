@@ -13,6 +13,7 @@
     },
     "dependencies": {
         "@stablelib/utf8": "1.0.0",
+        "dexie-export-import": "^4.0.7",
         "tslib": "^2.6.0",
         "tweetnacl": "1.0.3",
         "typeson": "5.18.2",

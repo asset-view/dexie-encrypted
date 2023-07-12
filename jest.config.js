@@ -4,5 +4,8 @@ module.exports = async () => {
         preset: 'ts-jest',
         testEnvironment: 'jsdom',
         clearMocks: true,
+        moduleNameMapper: {
+            '^dexie$': require.resolve('dexie'),
+        },
     };
 };

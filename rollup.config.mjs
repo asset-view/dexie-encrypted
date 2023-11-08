@@ -26,7 +26,7 @@ export default defineConfig([
             },
         ],
         plugins: [
-            typescript({ compilerOptions: { module: 'ES2022' } }),
+            typescript({ compilerOptions: { module: 'ESNEXT' } }),
             // commonjs(),
             // resolve(),
         ],
@@ -43,7 +43,7 @@ export default defineConfig([
             },
         ],
         plugins: [
-            typescript({ compilerOptions: { module: 'ES2022' } }),
+            typescript({ compilerOptions: { module: 'ESNEXT' } }),
             // commonjs(),
             // resolve(),
         ],

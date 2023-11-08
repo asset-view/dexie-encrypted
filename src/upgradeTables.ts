@@ -5,6 +5,7 @@ import {
     cryptoOptions,
     EncryptionMethod,
     DecryptionMethod,
+    TableType,
 } from './types';
 import { encryptEntity, decryptEntity } from './installHooks';
 
@@ -32,17 +33,17 @@ export async function upgradeTables<T extends Dexie>(
 ) {
     const unencryptedDb = new Dexie(db.name);
     // @ts-ignore
-    const version = db._versions.find(v => v._cfg.version === db.verno);
+    const version = db._versions.find((v) => v._cfg.version === db.verno);
     unencryptedDb.version(db.verno).stores(version._cfg.storesSource);
     await unencryptedDb.open();
 
     return Dexie.Promise.all(
-        unencryptedDb.tables.map(async function(tbl) {
-            const table = (tbl as unknown) as TableOf<T>;
+        unencryptedDb.tables.map(async function (tbl) {
+            const table = tbl as unknown as TableOf<T>;
             const oldSetting = oldSettings
-                ? oldSettings[(table.name as unknown) as keyof CryptoSettings<T>]
+                ? oldSettings[table.name as unknown as keyof CryptoSettings<T>]
                 : undefined;
-            const newSetting = tableSettings[(table.name as unknown) as keyof CryptoSettings<T>];
+            const newSetting = tableSettings[table.name as unknown as keyof CryptoSettings<T>];
 
             if (oldSetting === newSetting) {
                 // no upgrade needed.
@@ -69,17 +70,24 @@ export async function upgradeTables<T extends Dexie>(
                 }
             }
 
-            await table.toCollection().modify(function(entity: TableOf<T>, ref) {
-                const decrypted = decryptEntity(entity, oldSetting, encryptionKey, decrypt);
-                ref.value = encryptEntity(
-                    table,
-                    decrypted,
-                    newSetting,
-                    encryptionKey,
-                    encrypt,
-                    nonceOverride
-                );
-            });
+            await table
+                .toCollection()
+                .modify((entity: TableType<Dexie.Table>, ctx: { value: any }) => {
+                    const decrypted = decryptEntity<Dexie.Table>(
+                        entity,
+                        oldSetting,
+                        encryptionKey,
+                        decrypt
+                    );
+                    ctx.value = encryptEntity(
+                        table,
+                        decrypted,
+                        newSetting,
+                        encryptionKey,
+                        encrypt,
+                        nonceOverride
+                    );
+                });
             return;
         })
     );

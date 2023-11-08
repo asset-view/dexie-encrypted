@@ -2,7 +2,9 @@
     "name": "dexie-encrypted",
     "version": "2.0.0",
     "description": "Encryption middleware for Dexie",
-    "main": "dist",
+    "main": "dist/dexie-encrypted.cjs",
+    "module": "dist/dexie-encrypted.mjs",
+    "types": "dist/index.d.ts",
     "license": "MIT",
     "files": [
         "dist/*"
@@ -18,6 +20,9 @@
         "typeson-registry": "1.0.0-alpha.38"
     },
     "devDependencies": {
+        "@rollup/plugin-commonjs": "^25.0.7",
+        "@rollup/plugin-node-resolve": "^15.2.3",
+        "@rollup/plugin-typescript": "^11.1.5",
         "@types/jest": "26.0.10",
         "dexie": "^3.0.0",
         "dexie-export-import": "^1.0.0-beta.13",
@@ -25,6 +30,8 @@
         "fake-indexeddb": "^2.1.1",
         "jest": "26.4.0",
         "prettier": "^1.18.2",
+        "rimraf": "^5.0.5",
+        "rollup": "^4.3.0",
         "text-encoding": "^0.7.0",
         "ts-jest": "26.2.0",
         "tsc": "1.20150623.0",
@@ -35,7 +42,8 @@
     },
     "scripts": {
         "test": "jest",
-        "build": "tsc",
+        "build": "rimraf dist && rollup -c",
+        "build_old": "tsc",
         "format": "prettier index.js README.md --write"
     }
 }

@@ -35,11 +35,11 @@ devDependencies:
     specifier: 29.5.3
     version: 29.5.3
   dexie:
-    specifier: ^3.2.4
-    version: 3.2.4
+    specifier: ^4.0.1-beta.6
+    version: 4.0.1-beta.6
   dexie-export-import:
-    specifier: ^1.0.0-beta.13
-    version: 1.0.3(dexie@3.2.4)
+    specifier: ^4.0.7
+    version: 4.0.7(dexie@4.0.1-beta.6)
   eslint:
     specifier: ^8.44.0
     version: 8.44.0
@@ -1455,17 +1455,16 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
-  /dexie-export-import@1.0.3(dexie@3.2.4):
-    resolution: {integrity: sha512-oun27bUUEaeOfSZ8Cv3Nvj5s0LeANYBYQ7ROpF/3Zg1X/IALUnrX0hk5ZUMlYC3s99kFHimXX57ac5AlOdMzWw==}
+  /dexie-export-import@4.0.7(dexie@4.0.1-beta.6):
+    resolution: {integrity: sha512-h22soiockhhWch6edw8XL/JNfn7akPLuLf6kPQdR4uneG/P0XQus4I8wpjV86dck61oEYKPHm36jyft/zVK0jQ==}
     peerDependencies:
-      dexie: ^3.0.0 || ^2.0.4
+      dexie: ^2.0.4 || ^3.0.0 || ^4.0.1-alpha.5
     dependencies:
-      dexie: 3.2.4
+      dexie: 4.0.1-beta.6
     dev: true
 
-  /dexie@3.2.4:
-    resolution: {integrity: sha512-VKoTQRSv7+RnffpOJ3Dh6ozknBqzWw/F3iqMdsZg958R0AS8AnY9x9d1lbwENr0gzeGJHXKcGhAMRaqys6SxqA==}
-    engines: {node: '>=6.0'}
+  /dexie@4.0.1-beta.6:
+    resolution: {integrity: sha512-NOexH4Rn8mrdSg/bn3YNFdPzQ1vPNxgPYLGWGU46z26NYGW1XmC0hhjjttwx9jYwba1K9Ypo1ZbZLNKtK6INSg==}
     dev: true
 
   /diff-sequences@29.6.3:

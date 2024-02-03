@@ -60,12 +60,39 @@ function encryptEntity(table, entity, rule, encryptionKey, performEncryption, no
         return entity;
     }
     const indexObjects = table.schema.indexes;
-    const indices = indexObjects.map((index) => index.keyPath);
+    const indices = indexObjects.map(index => index.keyPath);
     const dataToStore = {};
     const primaryKey = 'primKey' in table.schema ? table.schema.primKey.keyPath : table.schema.primaryKey.keyPath;
+    const isPrimaryKey = (key) => {
+        return key === primaryKey;
+    };
+    const isIndexed = (key) => {
+        if (primaryKey === key)
+            return true;
+        for (const ix of indices) {
+            if (!ix)
+                continue;
+            if (ix == key)
+                return true;
+            if (Array.isArray(ix) && ix.includes(key))
+                return true;
+            // Special Object.Field Index
+            if (typeof entity[key] == 'object') {
+                if (!Array.isArray(ix)) {
+                    if (ix.startsWith(key) && ix.includes('.'))
+                        return true;
+                }
+                else {
+                    if (ix.find(x => x.startsWith(key) && x.includes('.')))
+                        return true;
+                }
+            }
+        }
+        return false;
+    };
     if (rule === cryptoOptions.NON_INDEXED_FIELDS) {
         for (const key in entity) {
-            if (key === primaryKey || indices.includes(key)) {
+            if (isIndexed(key)) {
                 dataToStore[key] = entity[key];
             }
             else {
@@ -75,7 +102,7 @@ function encryptEntity(table, entity, rule, encryptionKey, performEncryption, no
     }
     else if (rule.type === cryptoOptions.ENCRYPT_LIST) {
         for (const key in entity) {
-            if (key !== primaryKey && rule.fields.includes(key)) {
+            if (isPrimaryKey(key) === false && rule.fields.includes(key)) {
                 entity[key];
             }
             else {
@@ -86,10 +113,9 @@ function encryptEntity(table, entity, rule, encryptionKey, performEncryption, no
     else {
         const whitelist = rule.type === cryptoOptions.UNENCRYPTED_LIST ? rule.fields : [];
         for (const key in entity) {
-            if (key !== primaryKey &&
-                // @ts-ignore
+            if (isPrimaryKey(key) === false &&
+                isIndexed(key) === false &&
                 entity.hasOwnProperty(key) &&
-                indices.includes(key) === false &&
                 whitelist.includes(key) === false) {
                 entity[key];
             }
@@ -128,7 +154,7 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
     // but we also need to add the hooks before the db is open, so it's
     // guaranteed to happen before the key is actually needed.
     let encryptionKey = new Uint8Array(32);
-    keyPromise.then((realKey) => {
+    keyPromise.then(realKey => {
         encryptionKey = realKey;
     });
     return db.use({
@@ -137,6 +163,7 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
         level: 0,
         create(downlevelDatabase) {
             return Object.assign(Object.assign({}, downlevelDatabase), { table(tn) {
+                    // console.log('DEBUG', tn);
                     const tableName = tn;
                     const table = downlevelDatabase.table(tableName);
                     if (tableName in encryptionOptions === false) {
@@ -150,7 +177,7 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
                         return decryptEntity(data, encryptionSetting, encryptionKey, performDecryption);
                     }
                     return Object.assign(Object.assign({}, table), { openCursor(req) {
-                            return table.openCursor(req).then((cursor) => {
+                            return table.openCursor(req).then(cursor => {
                                 if (!cursor) {
                                     return cursor;
                                 }
@@ -182,18 +209,18 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
                             return table.get(req).then(decrypt);
                         },
                         getMany(req) {
-                            return table.getMany(req).then((items) => {
+                            return table.getMany(req).then(items => {
                                 return items.map(decrypt);
                             });
                         },
                         query(req) {
-                            return table.query(req).then((res) => {
-                                return Dexie.Promise.all(res.result.map(decrypt)).then((result) => (Object.assign(Object.assign({}, res), { result })));
+                            return table.query(req).then(res => {
+                                return Dexie.Promise.all(res.result.map(decrypt)).then(result => (Object.assign(Object.assign({}, res), { result })));
                             });
                         },
                         mutate(req) {
                             if (req.type === 'add' || req.type === 'put') {
-                                return Dexie.Promise.all(req.values.map(encrypt)).then((values) => table.mutate(Object.assign(Object.assign({}, req), { values })));
+                                return Dexie.Promise.all(req.values.map(encrypt)).then(values => table.mutate(Object.assign(Object.assign({}, req), { values })));
                             }
                             return table.mutate(req);
                         } });
@@ -386,6 +413,19 @@ function decryptWithNacl(encryptionKey, encryptedArray) {
 const NON_INDEXED_FIELDS = cryptoOptions.NON_INDEXED_FIELDS;
 const ENCRYPT_LIST = cryptoOptions.ENCRYPT_LIST;
 const UNENCRYPTED_LIST = cryptoOptions.UNENCRYPTED_LIST;
+function getAddon(encryptionKey, tableSettings, onKeyChange, _nonceOverrideForTesting) {
+    return (db) => {
+        applyMiddlewareWithCustomEncryption({
+            db,
+            encryptionKey,
+            tableSettings,
+            encrypt: encryptWithNacl,
+            decrypt: decryptWithNacl,
+            onKeyChange,
+            _nonceOverrideForTesting,
+        });
+    };
+}
 function applyEncryptionMiddleware(db, encryptionKey, tableSettings, onKeyChange, _nonceOverrideForTesting) {
     applyMiddlewareWithCustomEncryption({
         db,
@@ -398,5 +438,5 @@ function applyEncryptionMiddleware(db, encryptionKey, tableSettings, onKeyChange
     });
 }
 
-export { ENCRYPT_LIST, NON_INDEXED_FIELDS, UNENCRYPTED_LIST, applyEncryptionMiddleware, clearAllTables, clearEncryptedTables, cryptoOptions };
+export { ENCRYPT_LIST, NON_INDEXED_FIELDS, UNENCRYPTED_LIST, applyEncryptionMiddleware, clearAllTables, clearEncryptedTables, cryptoOptions, getAddon };
 //# sourceMappingURL=dexie-encrypted.mjs.map

@@ -1,5 +1,7 @@
 'use strict';
 
+Object.defineProperty(exports, '__esModule', { value: true });
+
 var Dexie = require('dexie');
 var nacl = require('tweetnacl');
 var utf8 = require('@stablelib/utf8');
@@ -62,9 +64,11 @@ function encryptEntity(table, entity, rule, encryptionKey, performEncryption, no
         return entity;
     }
     const indexObjects = table.schema.indexes;
-    const indices = indexObjects.map(index => index.keyPath);
+    const indices = indexObjects.map((index) => index.keyPath);
     const dataToStore = {};
-    const primaryKey = 'primKey' in table.schema ? table.schema.primKey.keyPath : table.schema.primaryKey.keyPath;
+    const primaryKey = 'primKey' in table.schema
+        ? table.schema.primKey.keyPath
+        : table.schema.primaryKey.keyPath;
     const isPrimaryKey = (key) => {
         return key === primaryKey;
     };
@@ -85,7 +89,7 @@ function encryptEntity(table, entity, rule, encryptionKey, performEncryption, no
                         return true;
                 }
                 else {
-                    if (ix.find(x => x.startsWith(key) && x.includes('.')))
+                    if (ix.find((x) => x.startsWith(key) && x.includes('.')))
                         return true;
                 }
             }
@@ -143,11 +147,14 @@ function decryptEntity(entity, rule, encryptionKey, performDecryption) {
     // This decrypts until all decryption is done. The only circumstance where it will
     // create an undesireable result is if your data has an __encryptedData key, and
     // that data can be decrypted by the performDecryption function.
+    let count = 0;
     while (decrypted.__encryptedData) {
+        count++;
         const decryptionAttempt = performDecryption(encryptionKey, decrypted.__encryptedData);
-        if (decryptionAttempt) {
+        if (decryptionAttempt)
             decrypted = decryptionAttempt;
-        }
+        if (count > 1)
+            console.warn('DexieEncrypted', 'Double encryption detected');
     }
     return Object.assign(Object.assign({}, unencryptedFields), decrypted);
 }
@@ -156,7 +163,7 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
     // but we also need to add the hooks before the db is open, so it's
     // guaranteed to happen before the key is actually needed.
     let encryptionKey = new Uint8Array(32);
-    keyPromise.then(realKey => {
+    keyPromise.then((realKey) => {
         encryptionKey = realKey;
     });
     return db.use({
@@ -169,62 +176,57 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
                     const tableName = tn;
                     const table = downlevelDatabase.table(tableName);
                     if (tableName in encryptionOptions === false) {
-                        return table;
+                        return table; // No Encryption
                     }
                     const encryptionSetting = encryptionOptions[tableName];
-                    function encrypt(data) {
+                    const encrypt = (data) => {
                         return encryptEntity(table, data, encryptionSetting, encryptionKey, performEncryption, nonceOverride);
-                    }
-                    function decrypt(data) {
+                    };
+                    const decrypt = (data) => {
                         return decryptEntity(data, encryptionSetting, encryptionKey, performDecryption);
-                    }
+                    };
                     return Object.assign(Object.assign({}, table), { openCursor(req) {
-                            return table.openCursor(req).then(cursor => {
-                                if (!cursor) {
-                                    return cursor;
-                                }
-                                return Object.create(cursor, {
-                                    continue: {
-                                        get() {
-                                            return cursor.continue;
-                                        },
-                                    },
-                                    continuePrimaryKey: {
-                                        get() {
-                                            return cursor.continuePrimaryKey;
-                                        },
-                                    },
-                                    key: {
-                                        get() {
-                                            return cursor.key;
-                                        },
-                                    },
-                                    value: {
-                                        get() {
+                            return __awaiter(this, void 0, void 0, function* () {
+                                const cursor = yield table.openCursor(req);
+                                if (!cursor)
+                                    return null;
+                                // Replace the Value Call via Proxy
+                                const proxy = new Proxy(cursor, {
+                                    get(target, prop) {
+                                        if (prop === 'value')
                                             return decrypt(cursor.value);
-                                        },
+                                        return target[prop];
                                     },
                                 });
+                                return proxy;
                             });
                         },
                         get(req) {
-                            return table.get(req).then(decrypt);
+                            return __awaiter(this, void 0, void 0, function* () {
+                                return table.get(req).then(decrypt);
+                            });
                         },
                         getMany(req) {
-                            return table.getMany(req).then(items => {
-                                return items.map(decrypt);
+                            return __awaiter(this, void 0, void 0, function* () {
+                                return table.getMany(req).then((items) => {
+                                    return items.map(decrypt);
+                                });
                             });
                         },
                         query(req) {
-                            return table.query(req).then(res => {
-                                return Dexie.Promise.all(res.result.map(decrypt)).then(result => (Object.assign(Object.assign({}, res), { result })));
+                            return __awaiter(this, void 0, void 0, function* () {
+                                return table.query(req).then((res) => {
+                                    return Dexie.Promise.all(res.result.map(decrypt)).then((result) => (Object.assign(Object.assign({}, res), { result })));
+                                });
                             });
                         },
                         mutate(req) {
-                            if (req.type === 'add' || req.type === 'put') {
-                                return Dexie.Promise.all(req.values.map(encrypt)).then(values => table.mutate(Object.assign(Object.assign({}, req), { values })));
-                            }
-                            return table.mutate(req);
+                            return __awaiter(this, void 0, void 0, function* () {
+                                if (req.type === 'add' || req.type === 'put') {
+                                    return Dexie.Promise.all(req.values.map(encrypt)).then((values) => table.mutate(Object.assign(Object.assign({}, req), { values })));
+                                }
+                                return table.mutate(req);
+                            });
                         } });
                 } });
         },
@@ -246,7 +248,7 @@ function upgradeTables(db, tableSettings, encryptionKey, oldSettings, encrypt, d
     return __awaiter(this, void 0, void 0, function* () {
         const unencryptedDb = new Dexie(db.name);
         // @ts-ignore
-        const version = db._versions.find((v) => v._cfg.version === db.verno);
+        const version = db._versions.find(v => v._cfg.version === db.verno);
         unencryptedDb.version(db.verno).stores(version._cfg.storesSource);
         yield unencryptedDb.open();
         return Dexie.Promise.all(unencryptedDb.tables.map(function (tbl) {
@@ -290,7 +292,9 @@ function upgradeTables(db, tableSettings, encryptionKey, oldSettings, encrypt, d
 
 function checkForKeyChange(db, oldSettings, encryptionKey, encrypt, decrypt, onKeyChange) {
     try {
-        const changeDetectionObj = oldSettings ? oldSettings.keyChangeDetection : null;
+        const changeDetectionObj = oldSettings
+            ? oldSettings.keyChangeDetection
+            : null;
         if (changeDetectionObj) {
             decrypt(encryptionKey, changeDetectionObj);
         }
@@ -350,7 +354,8 @@ function applyMiddlewareWithCustomEncryption({ db, encryptionKey, tableSettings,
                 throw new Error("Dexie-encrypted can't find its encryption table. You may need to bump your database version.");
             }
             const encryptionKey = yield keyPromise;
-            if (encryptionKey instanceof Uint8Array === false || encryptionKey.length !== 32) {
+            if (encryptionKey instanceof Uint8Array === false ||
+                encryptionKey.length !== 32) {
                 throw new Error('Dexie-encrypted requires a Uint8Array of length 32 for a encryption key.');
             }
             yield checkForKeyChange(db, oldSettings, encryptionKey, encrypt, decrypt, onKeyChange);
@@ -412,23 +417,11 @@ function decryptWithNacl(encryptionKey, encryptedArray) {
     return tson.parse(utf8.decode(rawDecrypted));
 }
 
-const NON_INDEXED_FIELDS = cryptoOptions.NON_INDEXED_FIELDS;
-const ENCRYPT_LIST = cryptoOptions.ENCRYPT_LIST;
-const UNENCRYPTED_LIST = cryptoOptions.UNENCRYPTED_LIST;
-function getAddon(encryptionKey, tableSettings, onKeyChange, _nonceOverrideForTesting) {
-    return (db) => {
-        applyMiddlewareWithCustomEncryption({
-            db,
-            encryptionKey,
-            tableSettings,
-            encrypt: encryptWithNacl,
-            decrypt: decryptWithNacl,
-            onKeyChange,
-            _nonceOverrideForTesting,
-        });
-    };
-}
 function applyEncryptionMiddleware(db, encryptionKey, tableSettings, onKeyChange, _nonceOverrideForTesting) {
+    db.encryption = {
+        version: '1',
+        tableSettings: tableSettings
+    };
     applyMiddlewareWithCustomEncryption({
         db,
         encryptionKey,
@@ -439,6 +432,28 @@ function applyEncryptionMiddleware(db, encryptionKey, tableSettings, onKeyChange
         _nonceOverrideForTesting,
     });
 }
+function dexieEncryption(options) {
+    return (db) => {
+        db.name;
+        db.encryption = {
+            version: '1',
+            tableSettings: options.tableSettings
+        };
+        applyMiddlewareWithCustomEncryption({
+            db: db,
+            encryptionKey: options.encryptionKey,
+            tableSettings: options.tableSettings,
+            encrypt: encryptWithNacl,
+            decrypt: decryptWithNacl,
+            onKeyChange: options.onKeyChange,
+            _nonceOverrideForTesting: options._nonceOverrideForTesting,
+        });
+    };
+}
+
+const NON_INDEXED_FIELDS = cryptoOptions.NON_INDEXED_FIELDS;
+const ENCRYPT_LIST = cryptoOptions.ENCRYPT_LIST;
+const UNENCRYPTED_LIST = cryptoOptions.UNENCRYPTED_LIST;
 
 exports.ENCRYPT_LIST = ENCRYPT_LIST;
 exports.NON_INDEXED_FIELDS = NON_INDEXED_FIELDS;
@@ -447,5 +462,5 @@ exports.applyEncryptionMiddleware = applyEncryptionMiddleware;
 exports.clearAllTables = clearAllTables;
 exports.clearEncryptedTables = clearEncryptedTables;
 exports.cryptoOptions = cryptoOptions;
-exports.getAddon = getAddon;
+exports.default = dexieEncryption;
 //# sourceMappingURL=dexie-encrypted.cjs.map

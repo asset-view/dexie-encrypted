@@ -63,6 +63,7 @@ export function applyMiddlewareWithCustomEncryption<T extends Dexie>({
       );
     }
   }
+  
   installHooks(
     db,
     tableSettings,
@@ -114,7 +115,9 @@ export function applyMiddlewareWithCustomEncryption<T extends Dexie>({
         decrypt,
         _nonceOverrideForTesting
       );
+
       await encryptionSettings.clear();
+
       await encryptionSettings.put({
         settings: tableSettings,
         keyChangeDetection: encrypt(

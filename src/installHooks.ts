@@ -1,4 +1,9 @@
-import Dexie, { DBCoreTable, DBCoreIndex, IndexSpec } from 'dexie';
+import Dexie, {
+  DBCoreTable,
+  DBCoreIndex,
+  DBCoreCursor,
+  IndexSpec,
+} from 'dexie';
 import {
   CryptoSettings,
   TablesOf,
@@ -22,7 +27,7 @@ export function encryptEntity<T extends Dexie.Table>(
   }
 
   const indexObjects = table.schema.indexes as (IndexSpec | DBCoreIndex)[];
-  const indices = indexObjects.map(index => index.keyPath);
+  const indices = indexObjects.map((index) => index.keyPath);
   const toEncrypt: Partial<TableType<T>> = {};
   const dataToStore: Partial<TableType<T>> = {};
 
@@ -46,7 +51,7 @@ export function encryptEntity<T extends Dexie.Table>(
         if (!Array.isArray(ix)) {
           if (ix.startsWith(key) && ix.includes('.')) return true;
         } else {
-          if (ix.find(x => x.startsWith(key) && x.includes('.'))) return true;
+          if (ix.find((x) => x.startsWith(key) && x.includes('.'))) return true;
         }
       }
     }
@@ -114,14 +119,15 @@ export function decryptEntity<T extends Dexie.Table>(
   // This decrypts until all decryption is done. The only circumstance where it will
   // create an undesireable result is if your data has an __encryptedData key, and
   // that data can be decrypted by the performDecryption function.
+  let count = 0;
   while (decrypted.__encryptedData) {
+    count++;
     const decryptionAttempt = performDecryption(
       encryptionKey,
       decrypted.__encryptedData
     );
-    if (decryptionAttempt) {
-      decrypted = decryptionAttempt;
-    }
+    if (decryptionAttempt) decrypted = decryptionAttempt;
+    if (count > 1) console.warn('DexieEncrypted', 'Double encryption detected');
   }
 
   return {
@@ -142,7 +148,7 @@ export function installHooks<T extends Dexie>(
   // but we also need to add the hooks before the db is open, so it's
   // guaranteed to happen before the key is actually needed.
   let encryptionKey = new Uint8Array(32);
-  keyPromise.then(realKey => {
+  keyPromise.then((realKey) => {
     encryptionKey = realKey;
   });
 
@@ -158,12 +164,11 @@ export function installHooks<T extends Dexie>(
           const tableName = tn as keyof TablesOf<T>;
           const table = downlevelDatabase.table(tableName as string);
           if (tableName in encryptionOptions === false) {
-            return table;
+            return table; // No Encryption
           }
 
           const encryptionSetting = encryptionOptions[tableName];
-
-          function encrypt(data: any) {
+          const encrypt = (data: any) => {
             return encryptEntity(
               table,
               data,
@@ -172,73 +177,56 @@ export function installHooks<T extends Dexie>(
               performEncryption,
               nonceOverride
             );
-          }
-
-          function decrypt(data: any) {
+          };
+          const decrypt = (data: any) => {
             return decryptEntity(
               data,
               encryptionSetting,
               encryptionKey,
               performDecryption
             );
-          }
+          };
 
           return {
             ...table,
-            openCursor(req) {
-              return table.openCursor(req).then(cursor => {
-                if (!cursor) {
-                  return cursor;
-                }
-                return Object.create(cursor, {
-                  continue: {
-                    get() {
-                      return cursor.continue;
-                    },
-                  },
-                  continuePrimaryKey: {
-                    get() {
-                      return cursor.continuePrimaryKey;
-                    },
-                  },
-                  key: {
-                    get() {
-                      return cursor.key;
-                    },
-                  },
-                  value: {
-                    get() {
-                      return decrypt(cursor.value);
-                    },
-                  },
-                });
+            async openCursor(req) {
+              const cursor = await table.openCursor(req);
+              if (!cursor) return null;
+              // Replace the Value Call via Proxy
+              const proxy = new Proxy(cursor, {
+                get(target: DBCoreCursor, prop: string) {
+                  if (prop === 'value') return decrypt(cursor.value);
+                  return (target as any)[prop];
+                },
               });
+              return proxy;
             },
-            get(req) {
+            async get(req) {
               return table.get(req).then(decrypt);
             },
-            getMany(req) {
-              return table.getMany(req).then(items => {
+            async getMany(req) {
+              return table.getMany(req).then((items) => {
                 return items.map(decrypt);
               });
             },
-            query(req) {
-              return table.query(req).then(res => {
+            async query(req) {
+              return table.query(req).then((res) => {
                 return Dexie.Promise.all(res.result.map(decrypt)).then(
-                  result => ({
+                  (result) => ({
                     ...res,
                     result,
                   })
                 );
               });
             },
-            mutate(req) {
+            async mutate(req) {
               if (req.type === 'add' || req.type === 'put') {
-                return Dexie.Promise.all(req.values.map(encrypt)).then(values =>
-                  table.mutate({
-                    ...req,
-                    values,
-                  })
+                return Dexie.Promise.all(req.values.map(encrypt)).then(
+                  (values) =>
+                    table.mutate({
+                      ...req,
+                      values,
+                    })
                 );
               }
               return table.mutate(req);

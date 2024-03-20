@@ -24,6 +24,12 @@ export type CryptoSettings<T extends Dexie> = Partial<
   }
 >;
 
+export type CryptoSettings2 = Record<
+  string,
+  | 'NON_INDEXED_FIELDS'
+  | { type: 'ENCRYPT_LIST' | 'UNENCRYPTED_LIST'; fields?: string[] }
+>;
+
 export type TablesOf<T extends Dexie> = {
   [U in keyof T]: T[U] extends Dexie.Table ? T[U] : never;
 };
@@ -45,12 +51,13 @@ export type EncryptionMethod = (
   input: any,
   nonceOverride?: Uint8Array
 ) => Uint8Array;
+
 export type DecryptionMethod = (
   encryptionKey: Uint8Array,
   input: Uint8Array
 ) => any;
 
-export interface EncryptDatabaseParams<T extends Dexie> {
+export interface EncryptDatabaseParams<T extends Dexie = Dexie> {
   db: T;
   encryptionKey: Uint8Array | Promise<Uint8Array>;
   tableSettings: CryptoSettings<T>;

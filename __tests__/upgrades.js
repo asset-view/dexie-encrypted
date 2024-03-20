@@ -93,7 +93,7 @@ describe('Upgrades', () => {
         await unencryptedDb.open();
         const unencrypted = await unencryptedDb.friends.get(1);
         expect(unencrypted).toMatchInlineSnapshot(`
-            Object {
+            {
               "__encryptedData": Uint8Array [
                 0,
                 0,

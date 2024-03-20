@@ -1,9 +1,6 @@
 require('fake-indexeddb/auto');
-
 const Dexie = require('dexie');
-
 const nacl = require('tweetnacl');
-
 const {
     applyEncryptionMiddleware,
     clearAllTables,
@@ -14,7 +11,7 @@ const {
 const keyPair = nacl.sign.keyPair.fromSeed(new Uint8Array(32));
 
 describe('Error messaging', () => {
-    it('should have helpful error messages if you need to bump your version', async done => {
+    it('should have helpful error messages if you need to bump your version', async () => {
         const db = new Dexie('no-crypt-check');
         db.version(1).stores({
             friends: '++id, name, age',
@@ -44,7 +41,9 @@ describe('Error messaging', () => {
 
         // this will cause a log because it throws off thread.
         // Jest will complain if the test finishes first
-        setTimeout(done, 20);
+        await new Promise((resolve) => {
+            setTimeout(resolve, 20);
+        });
     });
 
     it('should have helpful error messages if your key is a regular array', () => {
@@ -77,7 +76,7 @@ describe('Error messaging', () => {
         }).toThrow('Dexie-encrypted requires a Uint8Array of length 32 for an encryption key.');
     });
 
-    it('should have helpful error messages if your key is a promise that resolves with incorrect data', async done => {
+    it('should have helpful error messages if your key is a promise that resolves with incorrect data', (done) => {
         const db = new Dexie('key-check');
         db.version(1).stores({
             friends: '++id, name, age',
@@ -98,6 +97,7 @@ describe('Error messaging', () => {
             },
             () => done()
         );
+        // throw 'no error';
     });
 
     it('should have helpful error messages if your key is a Uint16Array', async () => {

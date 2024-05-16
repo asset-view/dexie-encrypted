@@ -25,7 +25,7 @@
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-typescript": "^11.1.6",
     "@types/jest": "29.5.3",
-    "dexie": "^4.0.1-beta.6",
+    "dexie": "^4.0.4",
     "eslint": "^8.56.0",
     "fake-indexeddb": "^2.1.1",
     "jest": "29.6.1",
@@ -45,5 +45,6 @@
     "build_old": "tsc",
     "format": "prettier index.js README.md --write",
     "link": "pnpm link --global dexie"
-  }
+  },
+  "packageManager": "pnpm@8.15.4+sha512.0bd3a9be9eb0e9a692676deec00a303ba218ba279d99241475616b398dbaeedd11146f92c2843458f557b1d127e09d4c171e105bdcd6b61002b39685a8016b9e"
 }

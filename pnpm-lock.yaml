@@ -35,8 +35,8 @@ devDependencies:
     specifier: 29.5.3
     version: 29.5.3
   dexie:
-    specifier: ^4.0.1-beta.6
-    version: 4.0.1-beta.6
+    specifier: ^4.0.4
+    version: 4.0.4
   eslint:
     specifier: ^8.56.0
     version: 8.56.0
@@ -1479,8 +1479,8 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
-  /dexie@4.0.1-beta.6:
-    resolution: {integrity: sha512-NOexH4Rn8mrdSg/bn3YNFdPzQ1vPNxgPYLGWGU46z26NYGW1XmC0hhjjttwx9jYwba1K9Ypo1ZbZLNKtK6INSg==}
+  /dexie@4.0.4:
+    resolution: {integrity: sha512-wFzwWSUdi+MC3jiFeQcCp9nInR7EaX8edzYY+4wmiITkQAiSnHpe4Wo2o5Ce5tJZe2nqt7mLW91MsW4GYx3ziQ==}
     dev: true
 
   /diff-sequences@29.6.3:

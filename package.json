@@ -25,7 +25,7 @@
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-typescript": "^11.1.6",
     "@types/jest": "29.5.3",
-    "dexie": "^4.0.4",
+    "dexie": "^4.0.7",
     "eslint": "^8.56.0",
     "fake-indexeddb": "^2.1.1",
     "jest": "29.6.1",

@@ -11,7 +11,7 @@
         "experimentalDecorators": true,
         "module": "commonjs",
         "moduleResolution": "node",
-        "target": "es2015",
+        "target": "es2020",
         "lib": ["es7", "dom", "es2020"],
         "skipLibCheck": true,
         "allowSyntheticDefaultImports": true,

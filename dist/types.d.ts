@@ -17,6 +17,10 @@ export declare const cryptoOptions: {
 export declare type CryptoSettings<T extends Dexie> = Partial<{
     [U in keyof T]: T[U] extends Dexie.Table ? EncryptionOption<T[U]> : never;
 }>;
+export declare type CryptoSettings2 = Record<string, 'NON_INDEXED_FIELDS' | {
+    type: 'ENCRYPT_LIST' | 'UNENCRYPTED_LIST';
+    fields?: string[];
+}>;
 export declare type TablesOf<T extends Dexie> = {
     [U in keyof T]: T[U] extends Dexie.Table ? T[U] : never;
 };
@@ -28,7 +32,7 @@ export declare type CryptoSettingsTableType<T extends Dexie> = {
 export declare type CryptoSettingsTable<T extends Dexie> = Dexie.Table<CryptoSettingsTableType<T>, number>;
 export declare type EncryptionMethod = (encryptionKey: Uint8Array, input: any, nonceOverride?: Uint8Array) => Uint8Array;
 export declare type DecryptionMethod = (encryptionKey: Uint8Array, input: Uint8Array) => any;
-export interface EncryptDatabaseParams<T extends Dexie> {
+export interface EncryptDatabaseParams<T extends Dexie = Dexie> {
     db: T;
     encryptionKey: Uint8Array | Promise<Uint8Array>;
     tableSettings: CryptoSettings<T>;

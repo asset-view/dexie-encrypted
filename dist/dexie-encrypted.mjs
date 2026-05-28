@@ -93,20 +93,26 @@ function decryptEntity(entity, rule, encryptionKey, performDecryption) {
         return entity;
     const { __encryptedData, ...unencryptedFields } = entity;
     let decrypted = performDecryption(encryptionKey, __encryptedData);
-    // There is a bug that causes double encryption. I am not sure what causes it,
-    // it is very rare and I have no repro steps. I believe the hook is running twice
-    // in very rare circumstances, but I have no evidence of it.
-    // This decrypts until all decryption is done. The only circumstance where it will
-    // create an undesireable result is if your data has an __encryptedData key, and
-    // that data can be decrypted by the performDecryption function.
-    let count = 0;
-    while (decrypted.__encryptedData) {
-        count++;
+    // Safety net for a rare, unreproduced bug where the write hook encrypts an
+    // entity more than once. Unwrap any extra layers, warning on each one. Bail
+    // out if a layer fails to decrypt (a custom decrypt() may return a falsy
+    // value on failure) or if we exceed the layer cap, so a corrupt blob can
+    // never spin this loop forever.
+    const MAX_DECRYPTION_LAYERS = 16;
+    let layers = 0;
+    while (decrypted && decrypted.__encryptedData) {
+        if (++layers > MAX_DECRYPTION_LAYERS) {
+            throw new Error('Dexie-encrypted exceeded the maximum number of decryption layers.');
+        }
+        console.warn('DexieEncrypted', 'Double encryption detected');
         const decryptionAttempt = performDecryption(encryptionKey, decrypted.__encryptedData);
-        if (decryptionAttempt)
-            decrypted = decryptionAttempt;
-        if (count > 1)
-            console.warn('DexieEncrypted', 'Double encryption detected');
+        if (!decryptionAttempt) {
+            // Couldn't unwrap the extra layer; drop the dangling blob rather than
+            // leak raw bytes into the returned object.
+            delete decrypted.__encryptedData;
+            break;
+        }
+        decrypted = decryptionAttempt;
     }
     return {
         ...unencryptedFields,

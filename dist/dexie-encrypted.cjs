@@ -8,50 +8,6 @@ var utf8 = require('@stablelib/utf8');
 var Typeson = require('typeson');
 var builtinTypes = require('typeson-registry/dist/presets/builtin');
 
-/******************************************************************************
-Copyright (c) Microsoft Corporation.
-
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
-OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-***************************************************************************** */
-/* global Reflect, Promise, SuppressedError, Symbol */
-
-
-function __rest(s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                t[p[i]] = s[p[i]];
-        }
-    return t;
-}
-
-function __awaiter(thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-}
-
-typeof SuppressedError === "function" ? SuppressedError : function (error, suppressed, message) {
-    var e = new Error(message);
-    return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
-};
-
 const tableEncryptionOptions = {
     NON_INDEXED_FIELDS: 'NON_INDEXED_FIELDS',
     UNENCRYPTED_LIST: 'UNENCRYPTED_LIST',
@@ -139,7 +95,7 @@ function decryptEntity(entity, rule, encryptionKey, performDecryption) {
         return;
     if (rule === undefined || !entity.__encryptedData)
         return entity;
-    const { __encryptedData } = entity, unencryptedFields = __rest(entity, ["__encryptedData"]);
+    const { __encryptedData, ...unencryptedFields } = entity;
     let decrypted = performDecryption(encryptionKey, __encryptedData);
     // There is a bug that causes double encryption. I am not sure what causes it,
     // it is very rare and I have no repro steps. I believe the hook is running twice
@@ -156,7 +112,10 @@ function decryptEntity(entity, rule, encryptionKey, performDecryption) {
         if (count > 1)
             console.warn('DexieEncrypted', 'Double encryption detected');
     }
-    return Object.assign(Object.assign({}, unencryptedFields), decrypted);
+    return {
+        ...unencryptedFields,
+        ...decrypted,
+    };
 }
 function installHooks(db, encryptionOptions, keyPromise, performEncryption, performDecryption, nonceOverride) {
     // this promise has to be resolved in order for the database to be open
@@ -171,7 +130,9 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
         name: 'encryption',
         level: 0,
         create(downlevelDatabase) {
-            return Object.assign(Object.assign({}, downlevelDatabase), { table(tn) {
+            return {
+                ...downlevelDatabase,
+                table(tn) {
                     // console.log('DEBUG', tn);
                     const tableName = tn;
                     const table = downlevelDatabase.table(tableName);
@@ -185,50 +146,50 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
                     const decrypt = (data) => {
                         return decryptEntity(data, encryptionSetting, encryptionKey, performDecryption);
                     };
-                    return Object.assign(Object.assign({}, table), { openCursor(req) {
-                            return __awaiter(this, void 0, void 0, function* () {
-                                const cursor = yield table.openCursor(req);
-                                if (!cursor)
-                                    return null;
-                                // Replace the Value Call via Proxy
-                                const proxy = new Proxy(cursor, {
-                                    get(target, prop) {
-                                        if (prop === 'value')
-                                            return decrypt(cursor.value);
-                                        return target[prop];
-                                    },
-                                });
-                                return proxy;
+                    return {
+                        ...table,
+                        async openCursor(req) {
+                            const cursor = await table.openCursor(req);
+                            if (!cursor)
+                                return null;
+                            // Replace the Value Call via Proxy
+                            const proxy = new Proxy(cursor, {
+                                get(target, prop) {
+                                    if (prop === 'value')
+                                        return decrypt(cursor.value);
+                                    return target[prop];
+                                },
+                            });
+                            return proxy;
+                        },
+                        async get(req) {
+                            return table.get(req).then(decrypt);
+                        },
+                        async getMany(req) {
+                            return table.getMany(req).then((items) => {
+                                return items.map(decrypt);
                             });
                         },
-                        get(req) {
-                            return __awaiter(this, void 0, void 0, function* () {
-                                return table.get(req).then(decrypt);
+                        async query(req) {
+                            return table.query(req).then((res) => {
+                                return Dexie.Promise.all(res.result.map(decrypt)).then((result) => ({
+                                    ...res,
+                                    result,
+                                }));
                             });
                         },
-                        getMany(req) {
-                            return __awaiter(this, void 0, void 0, function* () {
-                                return table.getMany(req).then((items) => {
-                                    return items.map(decrypt);
-                                });
-                            });
+                        async mutate(req) {
+                            if (req.type === 'add' || req.type === 'put') {
+                                return Dexie.Promise.all(req.values.map(encrypt)).then((values) => table.mutate({
+                                    ...req,
+                                    values,
+                                }));
+                            }
+                            return table.mutate(req);
                         },
-                        query(req) {
-                            return __awaiter(this, void 0, void 0, function* () {
-                                return table.query(req).then((res) => {
-                                    return Dexie.Promise.all(res.result.map(decrypt)).then((result) => (Object.assign(Object.assign({}, res), { result })));
-                                });
-                            });
-                        },
-                        mutate(req) {
-                            return __awaiter(this, void 0, void 0, function* () {
-                                if (req.type === 'add' || req.type === 'put') {
-                                    return Dexie.Promise.all(req.values.map(encrypt)).then((values) => table.mutate(Object.assign(Object.assign({}, req), { values })));
-                                }
-                                return table.mutate(req);
-                            });
-                        } });
-                } });
+                    };
+                },
+            };
         },
     });
 }
@@ -244,50 +205,46 @@ function compareArrays(a, b) {
     }
     return true;
 }
-function upgradeTables(db, tableSettings, encryptionKey, oldSettings, encrypt, decrypt, nonceOverride) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const unencryptedDb = new Dexie(db.name);
-        // @ts-ignore
-        const version = db._versions.find(v => v._cfg.version === db.verno);
-        unencryptedDb.version(db.verno).stores(version._cfg.storesSource);
-        yield unencryptedDb.open();
-        return Dexie.Promise.all(unencryptedDb.tables.map(function (tbl) {
-            return __awaiter(this, void 0, void 0, function* () {
-                const table = tbl;
-                const oldSetting = oldSettings
-                    ? oldSettings[table.name]
-                    : undefined;
-                const newSetting = tableSettings[table.name];
-                if (oldSetting === newSetting) {
+async function upgradeTables(db, tableSettings, encryptionKey, oldSettings, encrypt, decrypt, nonceOverride) {
+    const unencryptedDb = new Dexie(db.name);
+    // @ts-ignore
+    const version = db._versions.find(v => v._cfg.version === db.verno);
+    unencryptedDb.version(db.verno).stores(version._cfg.storesSource);
+    await unencryptedDb.open();
+    return Dexie.Promise.all(unencryptedDb.tables.map(async function (tbl) {
+        const table = tbl;
+        const oldSetting = oldSettings
+            ? oldSettings[table.name]
+            : undefined;
+        const newSetting = tableSettings[table.name];
+        if (oldSetting === newSetting) {
+            // no upgrade needed.
+            return Dexie.Promise.resolve();
+        }
+        if (oldSetting === undefined ||
+            newSetting === undefined ||
+            oldSetting === cryptoOptions.NON_INDEXED_FIELDS ||
+            newSetting === cryptoOptions.NON_INDEXED_FIELDS) ;
+        else {
+            // both non-strings. Figure out if they're the same.
+            // @ts-ignore will figure out later
+            if (newSetting.type === oldSetting.type) {
+                if (
+                // @ts-ignore will figure out later
+                compareArrays(newSetting.fields, oldSetting.fields)) {
                     // no upgrade needed.
-                    return Dexie.Promise.resolve();
+                    return;
                 }
-                if (oldSetting === undefined ||
-                    newSetting === undefined ||
-                    oldSetting === cryptoOptions.NON_INDEXED_FIELDS ||
-                    newSetting === cryptoOptions.NON_INDEXED_FIELDS) ;
-                else {
-                    // both non-strings. Figure out if they're the same.
-                    // @ts-ignore will figure out later
-                    if (newSetting.type === oldSetting.type) {
-                        if (
-                        // @ts-ignore will figure out later
-                        compareArrays(newSetting.fields, oldSetting.fields)) {
-                            // no upgrade needed.
-                            return;
-                        }
-                    }
-                }
-                yield table
-                    .toCollection()
-                    .modify((entity, ctx) => {
-                    const decrypted = decryptEntity(entity, oldSetting, encryptionKey, decrypt);
-                    ctx.value = encryptEntity(table, decrypted, newSetting, encryptionKey, encrypt, nonceOverride);
-                });
-                return;
-            });
-        }));
-    });
+            }
+        }
+        await table
+            .toCollection()
+            .modify((entity, ctx) => {
+            const decrypted = decryptEntity(entity, oldSetting, encryptionKey, decrypt);
+            ctx.value = encryptEntity(table, decrypted, newSetting, encryptionKey, encrypt, nonceOverride);
+        });
+        return;
+    }));
 }
 
 function checkForKeyChange(db, oldSettings, encryptionKey, encrypt, decrypt, onKeyChange) {
@@ -343,25 +300,25 @@ function applyMiddlewareWithCustomEncryption({ db, encryptionKey, tableSettings,
         }
     }
     installHooks(db, tableSettings, keyPromise, encrypt, decrypt, _nonceOverrideForTesting);
-    db.on('ready', () => __awaiter(this, void 0, void 0, function* () {
+    db.on('ready', async () => {
         try {
             let encryptionSettings = db.table('_encryptionSettings');
             let oldSettings;
             try {
-                oldSettings = yield encryptionSettings.toCollection().last();
+                oldSettings = await encryptionSettings.toCollection().last();
             }
             catch (e) {
                 throw new Error("Dexie-encrypted can't find its encryption table. You may need to bump your database version.");
             }
-            const encryptionKey = yield keyPromise;
+            const encryptionKey = await keyPromise;
             if (encryptionKey instanceof Uint8Array === false ||
                 encryptionKey.length !== 32) {
                 throw new Error('Dexie-encrypted requires a Uint8Array of length 32 for a encryption key.');
             }
-            yield checkForKeyChange(db, oldSettings, encryptionKey, encrypt, decrypt, onKeyChange);
-            yield upgradeTables(db, tableSettings, encryptionKey, oldSettings === null || oldSettings === void 0 ? void 0 : oldSettings.settings, encrypt, decrypt, _nonceOverrideForTesting);
-            yield encryptionSettings.clear();
-            yield encryptionSettings.put({
+            await checkForKeyChange(db, oldSettings, encryptionKey, encrypt, decrypt, onKeyChange);
+            await upgradeTables(db, tableSettings, encryptionKey, oldSettings?.settings, encrypt, decrypt, _nonceOverrideForTesting);
+            await encryptionSettings.clear();
+            await encryptionSettings.put({
                 settings: tableSettings,
                 keyChangeDetection: encrypt(encryptionKey, [1, 2, 3, 4, 5], new Uint8Array(24)),
             });
@@ -370,29 +327,25 @@ function applyMiddlewareWithCustomEncryption({ db, encryptionKey, tableSettings,
         catch (e) {
             return Dexie.Promise.reject(e);
         }
-    }));
+    });
 }
 function clearAllTables(db) {
     return Promise.all(db.tables.map(function (table) {
         return table.clear();
     }));
 }
-function clearEncryptedTables(db) {
-    return __awaiter(this, void 0, void 0, function* () {
-        let encryptionSettings = (yield db
-            .table('_encryptionSettings')
-            .toCollection()
-            .last()
-            .catch(() => {
-            throw new Error("Dexie-encrypted can't find its encryption table. You may need to bump your database version.");
-        }));
-        const promises = Object.keys(encryptionSettings.settings).map(function (key) {
-            return __awaiter(this, void 0, void 0, function* () {
-                yield db.table(key).clear();
-            });
-        });
-        return Promise.all(promises);
+async function clearEncryptedTables(db) {
+    let encryptionSettings = (await db
+        .table('_encryptionSettings')
+        .toCollection()
+        .last()
+        .catch(() => {
+        throw new Error("Dexie-encrypted can't find its encryption table. You may need to bump your database version.");
+    }));
+    const promises = Object.keys(encryptionSettings.settings).map(async function (key) {
+        await db.table(key).clear();
     });
+    return Promise.all(promises);
 }
 
 const tson = new Typeson().register([builtinTypes]);

@@ -43,6 +43,7 @@
   "scripts": {
     "test": "jest",
     "build": "rimraf dist && rollup -c",
+    "package": "rimraf .artifacts && pnpm run build && pnpm pack --pack-destination .artifacts",
     "build_old": "tsc",
     "format": "prettier index.js README.md --write",
     "link": "pnpm link --global dexie"

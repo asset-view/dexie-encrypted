@@ -19,6 +19,15 @@ function encryptEntity(table, entity, rule, encryptionKey, performEncryption, no
     if (rule === undefined) {
         return entity;
     }
+    // We should never double-encrypt. decryptEntity strips __encryptedData, so a
+    // value that has been read and written back never carries it. If we are
+    // handed one that does, the caller is writing an un-decrypted row — encrypting
+    // again would nest it. Refuse: store the row as-is, and surface the first
+    // offending write (with a stack) so the source can be fixed.
+    if (entity && entity.__encryptedData) {
+        console.warn('[dexie-encrypted] Refused to double-encrypt: a write supplied an already-encrypted row (an un-decrypted row written back). Stored as-is — fix the write path.', new Error().stack);
+        return entity;
+    }
     const indexObjects = table.schema.indexes;
     const indices = indexObjects.map((index) => index.keyPath);
     const dataToStore = {};
@@ -97,18 +106,18 @@ function decryptEntity(entity, rule, encryptionKey, performDecryption) {
         return entity;
     const { __encryptedData, ...unencryptedFields } = entity;
     let decrypted = performDecryption(encryptionKey, __encryptedData);
-    // Safety net for a rare, unreproduced bug where the write hook encrypts an
-    // entity more than once. Unwrap any extra layers, warning on each one. Bail
-    // out if a layer fails to decrypt (a custom decrypt() may return a falsy
-    // value on failure) or if we exceed the layer cap, so a corrupt blob can
-    // never spin this loop forever.
+    // Count how many times this value was encrypted. The decryption above peeled
+    // the first layer; each remaining __encryptedData is another layer, meaning it
+    // was encrypted again (the double-encryption bug). Unwrap them all. Bail out
+    // if a layer fails to decrypt (a custom decrypt() may return a falsy value on
+    // failure) or if we exceed the cap, so a corrupt blob can never spin forever.
     const MAX_DECRYPTION_LAYERS = 16;
-    let layers = 0;
+    let timesEncrypted = 1;
     while (decrypted && decrypted.__encryptedData) {
-        if (++layers > MAX_DECRYPTION_LAYERS) {
+        if (timesEncrypted >= MAX_DECRYPTION_LAYERS) {
             throw new Error('Dexie-encrypted exceeded the maximum number of decryption layers.');
         }
-        console.warn('DexieEncrypted', 'Double encryption detected');
+        timesEncrypted++;
         const decryptionAttempt = performDecryption(encryptionKey, decrypted.__encryptedData);
         if (!decryptionAttempt) {
             // Couldn't unwrap the extra layer; drop the dangling blob rather than
@@ -117,6 +126,10 @@ function decryptEntity(entity, rule, encryptionKey, performDecryption) {
             break;
         }
         decrypted = decryptionAttempt;
+    }
+    // Loud on every read of a multiply-encrypted row, reporting the depth.
+    if (timesEncrypted > 1) {
+        console.warn(`[dexie-encrypted] Data encrypted ${timesEncrypted} times`);
     }
     return {
         ...unencryptedFields,

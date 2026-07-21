@@ -49,12 +49,17 @@ export function encryptEntity<T extends Dexie.Table>(
       ? table.schema.primKey.keyPath
       : table.schema.primaryKey.keyPath;
 
+  // A compound primary key (e.g. `[domain+key]`) exposes its keyPath as an
+  // ARRAY of member field names. Comparing a string field against that array
+  // is always false, so a PK member that isn't ALSO in a secondary index would
+  // be treated as non-indexed → encrypted and stripped from the top-level row,
+  // and IndexedDB's compound keyPath would then find no value on `put`.
   const isPrimaryKey = (key: string) => {
-    return key === primaryKey;
+    return Array.isArray(primaryKey) ? primaryKey.includes(key) : key === primaryKey;
   };
 
   const isIndexed = (key: string) => {
-    if (primaryKey === key) return true;
+    if (isPrimaryKey(key)) return true;
     for (const ix of indices) {
       if (!ix) continue;
       if (ix == key) return true;

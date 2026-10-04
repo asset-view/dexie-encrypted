@@ -170,31 +170,48 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
                     const decrypt = (data) => {
                         return decryptEntity(data, encryptionSetting, encryptionKey, performDecryption);
                     };
+                    // ZONE-TRANSPARENT BY CONSTRUCTION: none of these may be `async`.
+                    //
+                    // A DBCore middleware sits inside Dexie's own promise chain. Declare
+                    // an operation `async` and its result reaches Dexie through a NATIVE
+                    // promise that adopts the Dexie promise. Dexie reads that adoption as
+                    // "a native await just ended" and takes one off its expected-awaits
+                    // count, which is ONE counter for the whole page, shared by every
+                    // database. Whichever transaction scope is inside a native await in
+                    // that tick loses its zone: its next operation runs in a transaction
+                    // of its own, the scope's transaction idles and commits, and the
+                    // scope rejects with "Transaction committed too early". The victim is
+                    // never the caller of this table, which is why it read as random.
+                    //
+                    // So every operation RETURNS the promise Dexie handed it (`.then` on
+                    // a Dexie promise is still a Dexie promise), the shape Dexie's own
+                    // middlewares use.
                     return {
                         ...table,
-                        async openCursor(req) {
-                            const cursor = await table.openCursor(req);
-                            if (!cursor)
-                                return null;
-                            // Replace the Value Call via Proxy
-                            const proxy = new Proxy(cursor, {
-                                get(target, prop) {
-                                    if (prop === 'value')
-                                        return decrypt(cursor.value);
-                                    return target[prop];
-                                },
+                        openCursor(req) {
+                            return table.openCursor(req).then((cursor) => {
+                                if (!cursor)
+                                    return null;
+                                // Replace the Value Call via Proxy
+                                const proxy = new Proxy(cursor, {
+                                    get(target, prop) {
+                                        if (prop === 'value')
+                                            return decrypt(cursor.value);
+                                        return target[prop];
+                                    },
+                                });
+                                return proxy;
                             });
-                            return proxy;
                         },
-                        async get(req) {
+                        get(req) {
                             return table.get(req).then(decrypt);
                         },
-                        async getMany(req) {
+                        getMany(req) {
                             return table.getMany(req).then((items) => {
                                 return items.map(decrypt);
                             });
                         },
-                        async query(req) {
+                        query(req) {
                             return table.query(req).then((res) => {
                                 return Dexie.Promise.all(res.result.map(decrypt)).then((result) => ({
                                     ...res,
@@ -202,9 +219,18 @@ function installHooks(db, encryptionOptions, keyPromise, performEncryption, perf
                                 }));
                             });
                         },
-                        async mutate(req) {
+                        mutate(req) {
                             if (req.type === 'add' || req.type === 'put') {
-                                return Dexie.Promise.all(req.values.map(encrypt)).then((values) => table.mutate({
+                                // A throw while encrypting must still REJECT the write (it did
+                                // when this was `async`), never escape synchronously.
+                                let encrypted;
+                                try {
+                                    encrypted = req.values.map(encrypt);
+                                }
+                                catch (error) {
+                                    return Dexie.Promise.reject(error);
+                                }
+                                return Dexie.Promise.all(encrypted).then((values) => table.mutate({
                                     ...req,
                                     values,
                                 }));

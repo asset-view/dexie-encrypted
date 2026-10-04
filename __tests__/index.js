@@ -88,6 +88,42 @@ describe('Encrypting', () => {
         expect(out).toEqual({ ...original, id: 1 });
     });
 
+    it('should keep every member of a compound primary key in the clear', async () => {
+        // Regression: a compound PK exposes its keyPath as an ARRAY. A member
+        // that is not ALSO in a secondary index (here `key`) was treated as
+        // non-indexed → encrypted and stripped from the top-level row, so the
+        // `put` failed with "Evaluating the object store's key path did not
+        // yield a value". `domain` survived only via the [domain+updatedAt]
+        // secondary index. Both members must round-trip.
+        const db = new Dexie('compound-pk');
+        applyEncryptionMiddleware(
+            db,
+            keyPair.publicKey,
+            {
+                sysSessions: cryptoOptions.NON_INDEXED_FIELDS,
+            },
+            clearAllTables,
+            new Uint8Array(24)
+        );
+        db.version(1).stores({
+            sysSessions: '[domain+key], [domain+updatedAt], pluginUuid, updatedAt',
+        });
+        await db.open();
+
+        const original = {
+            domain: 'ai-chat',
+            key: 'chat:app:5894f8cf-9071-4f81-961d-00bf8cb71009',
+            pluginUuid: undefined,
+            updatedAt: 1784645847749,
+            state: { v: 1, messages: [{ role: 'user', content: 'hi' }] },
+        };
+
+        await expect(db.sysSessions.put(original)).resolves.toBeDefined();
+
+        const out = await db.sysSessions.get(['ai-chat', original.key]);
+        expect(out).toEqual(original);
+    });
+
     it('should decrypt', async () => {
         const db = new Dexie('decrypt-test');
         applyEncryptionMiddleware(
